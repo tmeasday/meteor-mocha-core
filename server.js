@@ -1,6 +1,6 @@
 var Fiber = Npm.require("fibers");
 
-setupGlobals = function(mocha){
+setupGlobals = function(mocha) {
   //basically a direct copy from meteor/packages/meteor/dynamics_nodejs.js
   //except the wrapped function has an argument (mocha distinguishes
   //asynchronous tests from synchronous ones by the "length" of the
@@ -14,8 +14,8 @@ setupGlobals = function(mocha){
       var description = onException || "callback of async function";
       onException = function (error) {
         Meteor._debug(
-          "Exception in " + description + ":",
-          error && error.stack || error
+            "Exception in " + description + ":",
+            error && error.stack || error
         );
       };
     }
@@ -24,6 +24,7 @@ setupGlobals = function(mocha){
     //Metoer.bindEnvironment this is ` return function (/* arguments */) {`
     return function (callback) {
       var args = _.toArray(arguments);
+      _this = _this || this;
 
       var runWithEnvironment = function () {
         var savedValues = Fiber.current._meteor_dynamics;
@@ -46,6 +47,17 @@ setupGlobals = function(mocha){
     };
   };
 
+  var wrappedFunc = function (func) {
+    return function (callback) {
+        if (func.length == 0) {
+          func.call(this);
+          callback();
+        }
+        else {
+        func.call(this, callback);
+        }
+      }
+    };
 
   var mochaExports = {};
   mocha.suite.emit("pre-require", mochaExports, undefined, mocha);
@@ -58,7 +70,7 @@ setupGlobals = function(mocha){
     return function() {
       this.toString = function(){return func.toString()};
       // `this` will be bound to the suite instance, as of Mocha's `describe` implementation
-      Meteor.bindEnvironment(func.bind(this), function(err) { throw err; })();
+      moddedBindEnvironment(func.bind(this), function(err) { throw err; })();
     }
   }
 
@@ -67,7 +79,7 @@ setupGlobals = function(mocha){
   };
   global.describe.skip = mochaExports.describe.skip;
   global.describe.only = function(name, func) {
-    mochaExports.describe.only(name, Meteor.bindEnvironment(func, function(err){ throw err; }));
+    mochaExports.describe.only(name, moddedBindEnvironment(func, function(err){ throw err; }));
   };
 
   //In Meteor, these blocks will all be invoking Meteor code and must
@@ -85,20 +97,11 @@ setupGlobals = function(mocha){
   //forking mocha itself.
 
   global['it'] = function (name, func){
-    wrappedFunc = function(callback){
-      if (func.length == 0){
-        func();
-        callback();
-      }
-      else {
-        func(callback);
-      }
-    }
 
-    boundWrappedFunction = moddedBindEnvironment(wrappedFunc, function(err){
+    boundWrappedFunction = moddedBindEnvironment(wrappedFunc(func), function(err){
       throw err;
     });
-    // Show original's function source code
+    // Show original function source code
     boundWrappedFunction.toString = function(){ return func.toString()};
 
     mochaExports['it'](name, boundWrappedFunction);
@@ -110,17 +113,8 @@ setupGlobals = function(mocha){
 
   ["before", "beforeEach", "after", "afterEach"].forEach(function(testFunctionName){
     global[testFunctionName] = function (func){
-      wrappedFunc = function(callback){
-        if (func.length == 0){
-          func();
-          callback();
-        }
-        else {
-          func(callback);
-        }
-      }
 
-      boundWrappedFunction = moddedBindEnvironment(wrappedFunc, function(err){
+      boundWrappedFunction = moddedBindEnvironment(wrappedFunc(func), function(err){
         throw err;
       });
       mochaExports[testFunctionName](boundWrappedFunction);
