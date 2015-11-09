@@ -74,24 +74,25 @@ setupGlobals = function(mocha){
     //fiber, but it was unclear to me how that could be done without
     //forking mocha itself.
 
-    var wrappedFunc = function (callback) {
-
-      if (func.length == 0) {
-        func.call(this);
-        callback();
-      }
-      else {
-        func.call(this, callback);
-      }
+    var wrappedFunction = function (callback) {
+      Fiber(function() {
+        try {
+          if (func.length == 0) {
+            func.call(this);
+            callback();
+          }
+          else {
+            func.call(this, callback);
+          }
+        } catch (error) {
+          callback(error);
+        }
+      }).run();
     };
 
-    var boundWrappedFunction = moddedBindEnvironment(wrappedFunc, function(err){
-      throw err;
-    });
-
     // Show original function source code
-    boundWrappedFunction.toString = function(){return func.toString()};
-    return boundWrappedFunction
+    wrappedFunction.toString = function(){return func.toString()};
+    return wrappedFunction;
   };
 
   global.describe = function (name, func){
