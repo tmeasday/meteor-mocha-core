@@ -75,7 +75,7 @@ setupGlobals = function(mocha){
     //forking mocha itself.
 
     var wrappedFunction = function (callback) {
-      Fiber(function() {
+      const run = function() {
         try {
           if (func.length == 0) {
             func.call(this);
@@ -87,7 +87,12 @@ setupGlobals = function(mocha){
         } catch (error) {
           callback(error);
         }
-      }).run();
+      };
+
+      if (Fiber.current) {
+        return run();
+      }
+      Fiber(run).run();
     };
 
     // Show original function source code
@@ -95,14 +100,17 @@ setupGlobals = function(mocha){
     return wrappedFunction;
   };
 
-  global.describe = function (name, func){
-    return mochaExports.describe(name, moddedBindEnvironment(func, function(err) { throw err; }), this);
-  };
-  global.describe.skip = mochaExports.describe.skip;
-  global.describe.only = function(name, func) {
-    mochaExports.describe.only(name, moddedBindEnvironment(func, function(err) { throw err; }), this);
-  };
 
+  global.describe = mochaExports.describe;
+  // global.describe = function (name, func){
+  //   return mochaExports.describe(name, moddedBindEnvironment(func, function(err) { throw err; }), this);
+  // };
+  global.describe.skip = mochaExports.describe.skip;
+  // global.describe.only = function(name, func) {
+  //   mochaExports.describe.only(name, moddedBindEnvironment(func, function(err) { throw err; }), this);
+  // };
+  global.describe.only = mochaExports.describe.only;
+  
   global['it'] = function (name, func){
     
     // You can create pending tests without a callback
